@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "eval_lm",
+            "args": [
+                "--model vllm", 
+                "--model_args pretrained=Qwen/Qwen2.5-0.5B-Instruct,tensor_parallel_size=1,dtype=auto,gpu_memory_utilization=0.8,data_parallel_size=1,max_model_len=8192", 
+                "--batch_size auto", 
+                "--tasks minerva_math", 
+                "--output_path ./outputs", 
+                "--log_samples", 
+                "--predict_only", 
+                "--seed 42,42,42,42"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "7"
+            },
+        }
+    ]
+}
