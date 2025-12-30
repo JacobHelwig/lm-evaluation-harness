@@ -1,3 +1,19 @@
+
+```bash
+conda create -n lm-eval -y python=3.12
+conda activate lm-eval
+python -m pip install "lm_eval[vllm,hf,math]"
+```
+
+
+```bash
+bash scripts/eval/math.sh 
+```
+
+
+
+# Main README
+
 # Language Model Evaluation Harness
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10256836.svg)](https://doi.org/10.5281/zenodo.10256836)
