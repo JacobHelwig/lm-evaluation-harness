@@ -17,11 +17,29 @@ def process_docs(dataset: datasets.Dataset) -> datasets.Dataset:
 
 def process_results(doc: dict, results: List[str]) -> Dict[str, int]:
     retval = 0
-    indices = [pos for pos, char in enumerate(results[0]) if char == "$"]
-    if len(indices) <= 1:
-        answer = results[0]
+    # indices = [pos for pos, char in enumerate(results[0]) if char == "$"]
+    # if len(indices) <= 1:
+    #     answer = results[0]
+    # else:
+    #     answer = results[0][indices[0] + 1 : indices[-1]]
+    full_answer = results[0]
+    answer = last_boxed_only_string(full_answer)
+    if answer is not None:
+        answer = remove_boxed(answer)
     else:
-        answer = results[0][indices[0] + 1 : indices[-1]]
+        answer = full_answer
+    # print("#" * 60)
+    # print("Problem:")
+    # print(doc["problem"])
+    # print("-" * 60)
+    # print("Predicted answer:")
+    # print(full_answer)
+    # print("-" * 60)
+    # print("Extracted answer:")
+    # print(answer)
+    # print("-" * 60)
+    # print("GT answer:")
+    # print(remove_boxed(last_boxed_only_string(doc["solution"])))
 
     if is_equiv(answer, remove_boxed(last_boxed_only_string(doc["solution"]))):
         retval = 1
