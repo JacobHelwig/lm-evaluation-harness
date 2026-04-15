@@ -1,0 +1,15 @@
+include: humaneval_instruct.yaml
+task: humaneval_cot
+# CoT: let the model reason before emitting ```python ... ``` block.
+gen_prefix: ""
+generation_kwargs:
+  until: []
+  max_gen_toks: 2048
+  do_sample: false
+filter_list:
+  - name: "create_test"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.build_predictions_cot
+metadata:
+  version: 1.0

@@ -1,0 +1,13 @@
+include: mbpp_instruct.yaml
+task: mbpp_cot
+# CoT: drop the gen_prefix so the model can reason before emitting ```python ... ```.
+# The inherited `extract_code_blocks` filter already grabs the first fenced code block,
+# so reasoning prose is stripped before grading.
+gen_prefix: ""
+generation_kwargs:
+  max_gen_toks: 2048
+  until: []
+  do_sample: false
+num_fewshot: 0
+metadata:
+  version: 1.0
