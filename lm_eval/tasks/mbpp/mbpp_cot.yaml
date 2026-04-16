@@ -1,13 +1,18 @@
 include: mbpp_instruct.yaml
 task: mbpp_cot
-# CoT: drop the gen_prefix so the model can reason before emitting ```python ... ```.
-# The inherited `extract_code_blocks` filter already grabs the first fenced code block,
-# so reasoning prose is stripped before grading.
+# CoT: ask for reasoning in the user prompt (enable_thinking=False suppresses
+# Qwen3's auto-thinking, so we instruct the model directly).
+doc_to_text: "You are an expert Python programmer, and here is your task:\n{{text}}\nYour code should pass these tests:\n{{test_list[0]}}\n{{test_list[1]}}\n{{test_list[2]}}\n\nThink step by step about the problem first, then provide your final solution as a single Python code block wrapped in ```python and ```."
 gen_prefix: ""
 generation_kwargs:
   max_gen_toks: 2048
   until: []
   do_sample: false
 num_fewshot: 0
+filter_list:
+  - name: "extract_code"
+    filter:
+      - function: "custom"
+        filter_fn: !function utils.build_predictions_cot
 metadata:
   version: 1.0

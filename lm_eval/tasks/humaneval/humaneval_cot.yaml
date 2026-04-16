@@ -1,6 +1,9 @@
 include: humaneval_instruct.yaml
 task: humaneval_cot
-# CoT: let the model reason before emitting ```python ... ``` block.
+# CoT: ask the model to reason in the user prompt itself (since enable_thinking=False
+# causes the chat template to insert an empty <think></think> block that suppresses
+# Qwen3's native reasoning).
+doc_to_text: "Write a solution to the following problem and make sure that it passes the tests:\n```python\n{{ prompt }}\n```\n\nThink step by step about the problem first, then provide your final solution as a single Python code block wrapped in ```python and ```."
 gen_prefix: ""
 generation_kwargs:
   until: []
