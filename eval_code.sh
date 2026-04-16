@@ -16,10 +16,21 @@ set -xeuo pipefail
 ############################ Quick Config ############################
 
 MODEL="Qwen/Qwen3-0.6B"
-TASKS="humaneval,mbpp"
 NUM_FEWSHOT=0
 MAX_GEN_TOKS=1024
 BACKEND="vllm"   # or "hf"
+
+# COT=1 → use chain-of-thought variants (humaneval_cot, mbpp_cot) with chat template.
+#         Model can reason freely; final code is extracted from the last ```python``` block.
+# COT=0 → raw-completion humaneval/mbpp (default).
+COT=${COT:-0}
+if [[ "$COT" == "1" ]]; then
+    TASKS="humaneval_cot,mbpp_cot"
+    CHAT_FLAGS=(--apply_chat_template --system_instruction "You are an expert Python programmer. Think step by step about the problem, then provide your final solution as a single Python code block wrapped in \`\`\`python and \`\`\`.")
+else
+    TASKS="humaneval,mbpp"
+    CHAT_FLAGS=()
+fi
 
 # Multi-GPU notes:
 #   - TP (tensor parallel): only needed when the model doesn't fit on one GPU; adds
@@ -29,7 +40,8 @@ BACKEND="vllm"   # or "hf"
 TP_SIZE=1
 DP_SIZE=4
 
-OUTPUT_DIR="$PWD/eval_outputs/$(echo "$MODEL" | tr '/' '_')_$(date +%Y%m%d_%H%M%S)"
+COT_TAG=$([[ "$COT" == "1" ]] && echo "cot" || echo "nocot")
+OUTPUT_DIR="$PWD/eval_outputs/$(echo "$MODEL" | tr '/' '_')_${COT_TAG}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$OUTPUT_DIR"
 
 ############################ Launch ############################
@@ -55,7 +67,8 @@ lm-eval run \
     --log_samples \
     --write_out \
     --confirm_run_unsafe_code \
-    --limit 16
+    "${CHAT_FLAGS[@]}" \
+    --limit 16 \
     "$@"
 
 echo "Done. Per-sample inputs/outputs saved under: $OUTPUT_DIR"

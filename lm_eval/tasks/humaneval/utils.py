@@ -1,3 +1,5 @@
+import re
+
 import evaluate as hf_evaluate
 
 
@@ -37,3 +39,36 @@ def build_predictions_instruct(
         ]
         for resp, doc in zip(resps, docs)
     ]
+
+
+_CODE_BLOCK_RE = re.compile(r"```(?:python)?\s*\n?(.*?)```", re.DOTALL)
+
+
+def _extract_last_code_block(text: str, fallback_prompt: str = "") -> str:
+    """Return the last ```python ... ``` block's body; fall back to the full text."""
+    matches = _CODE_BLOCK_RE.findall(text)
+    if matches:
+        return matches[-1]
+    # No fenced block — assume the whole response is code.
+    return text
+
+
+def build_predictions_cot(
+    resps: list[list[str]], docs: list[dict]
+) -> list[list[str]]:
+    """CoT-friendly filter: extracts the last ```python``` block as the candidate.
+    If the extracted block already contains a `def <entry_point>`, use it verbatim
+    (model emitted full function). Otherwise prepend doc['prompt'] so it gets a
+    signature.
+    """
+    out = []
+    for resp, doc in zip(resps, docs):
+        row = []
+        for r in resp:
+            code = _extract_last_code_block(r).strip()
+            if f"def {doc['entry_point']}" in code:
+                row.append(code)
+            else:
+                row.append(doc["prompt"] + code)
+        out.append(row)
+    return out
