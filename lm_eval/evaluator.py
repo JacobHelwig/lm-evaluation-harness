@@ -570,6 +570,8 @@ def evaluate(
             padding_requests[reqtype] += numpad
 
     ### Run LM on inputs, get all outputs ###
+    import time as _time
+    _generation_start = _time.time()
     # execute each type of request
     for reqtype, reqs in requests.items():
         eval_logger.info(f"Running {reqtype} requests")
@@ -591,6 +593,10 @@ def evaluate(
 
         if lm.world_size > 1:
             lm.barrier()
+
+    _generation_elapsed = _time.time() - _generation_start
+    eval_logger.info(f"Generation completed in {_generation_elapsed:.1f}s")
+    _grading_start = _time.time()
 
     RANK = lm.rank
     WORLD_SIZE = lm.world_size
@@ -687,6 +693,10 @@ def evaluate(
                             for rank_data in all_metrics  # type: ignore
                         )
                     )
+
+    _grading_elapsed = _time.time() - _grading_start
+    eval_logger.info(f"Grading completed in {_grading_elapsed:.1f}s")
+    eval_logger.info(f"TIMING: generation={_generation_elapsed:.1f}s  grading={_grading_elapsed:.1f}s  total={_generation_elapsed + _grading_elapsed:.1f}s")
 
     if RANK == 0:
         res = _process_results(eval_results_acc, groups, bootstrap_iters)

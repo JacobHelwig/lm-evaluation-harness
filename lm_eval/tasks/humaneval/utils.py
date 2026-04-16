@@ -44,31 +44,40 @@ def build_predictions_instruct(
 _CODE_BLOCK_RE = re.compile(r"```(?:python)?\s*\n?(.*?)```", re.DOTALL)
 
 
-def _extract_last_code_block(text: str, fallback_prompt: str = "") -> str:
-    """Return the last ```python ... ``` block's body; fall back to the full text."""
+def _pick_code_block(text: str, entry_point: str) -> str | None:
+    """Return the ```python``` block most likely to contain the target function.
+    Prefers blocks containing `def <entry_point>`, else any block with `def `,
+    else the longest block. Returns None if no fenced block exists."""
     matches = _CODE_BLOCK_RE.findall(text)
-    if matches:
-        return matches[-1]
-    # No fenced block — assume the whole response is code.
-    return text
+    if not matches:
+        return None
+    with_target = [m for m in matches if f"def {entry_point}" in m]
+    if with_target:
+        return with_target[0]
+    with_def = [m for m in matches if "def " in m]
+    if with_def:
+        return with_def[0]
+    return max(matches, key=len)
 
 
 def build_predictions_cot(
     resps: list[list[str]], docs: list[dict]
 ) -> list[list[str]]:
-    """CoT-friendly filter: extracts the last ```python``` block as the candidate.
-    If the extracted block already contains a `def <entry_point>`, use it verbatim
-    (model emitted full function). Otherwise prepend doc['prompt'] so it gets a
-    signature.
-    """
+    """CoT-friendly filter: extracts the function-bearing ```python``` block.
+    If the extracted block contains `def <entry_point>`, uses it verbatim;
+    otherwise prepends doc['prompt'] so the function gets a signature."""
     out = []
     for resp, doc in zip(resps, docs):
         row = []
         for r in resp:
-            code = _extract_last_code_block(r).strip()
-            if f"def {doc['entry_point']}" in code:
-                row.append(code)
+            block = _pick_code_block(r, doc["entry_point"])
+            if block is None:
+                row.append(doc["prompt"] + r)
+                continue
+            block = block.strip()
+            if f"def {doc['entry_point']}" in block:
+                row.append(block)
             else:
-                row.append(doc["prompt"] + code)
+                row.append(doc["prompt"] + block)
         out.append(row)
     return out

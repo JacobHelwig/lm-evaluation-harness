@@ -15,9 +15,10 @@ set -xeuo pipefail
 
 ############################ Quick Config ############################
 
-MODEL="Qwen/Qwen3-0.6B"
+MODEL="Qwen/Qwen3-4B"
 NUM_FEWSHOT=0
-MAX_GEN_TOKS=1024
+MAX_GEN_TOKS=4096
+MEMORY_FRACTION=0.5
 BACKEND="vllm"   # or "hf"
 
 # COT=1 → use chain-of-thought variants (humaneval_cot, mbpp_cot) with chat template.
@@ -51,25 +52,26 @@ mkdir -p "$OUTPUT_DIR"
 # sent to the model and the generated completion.
 
 if [[ "$BACKEND" == "vllm" ]]; then
-    MODEL_ARGS="pretrained=${MODEL},dtype=bfloat16,gpu_memory_utilization=0.9,max_model_len=8192,tensor_parallel_size=${TP_SIZE},data_parallel_size=${DP_SIZE},enforce_eager=True"
+    MODEL_ARGS="pretrained=${MODEL},dtype=bfloat16,gpu_memory_utilization=${MEMORY_FRACTION},max_model_len=8192,tensor_parallel_size=${TP_SIZE},data_parallel_size=${DP_SIZE},enforce_eager=True,enable_thinking=False"
 else
     MODEL_ARGS="pretrained=${MODEL},dtype=bfloat16"
 fi
+
+LOGFILE="$OUTPUT_DIR/run.log"
 
 lm-eval run \
     --model "$BACKEND" \
     --model_args "$MODEL_ARGS" \
     --tasks "$TASKS" \
     --num_fewshot "$NUM_FEWSHOT" \
-    --gen_kwargs "max_gen_toks=${MAX_GEN_TOKS}" \
+    --gen_kwargs "max_gen_toks=${MAX_GEN_TOKS},temperature=0,do_sample=False" \
     --batch_size auto \
     --output_path "$OUTPUT_DIR" \
     --log_samples \
     --write_out \
     --confirm_run_unsafe_code \
     "${CHAT_FLAGS[@]}" \
-    --limit 16 \
-    "$@"
+    "$@" 2>&1 | tee "$LOGFILE"
 
 echo "Done. Per-sample inputs/outputs saved under: $OUTPUT_DIR"
 
@@ -77,9 +79,20 @@ echo "Done. Per-sample inputs/outputs saved under: $OUTPUT_DIR"
 N_PREVIEW=${N_PREVIEW:-2}
 PREVIEW_FILE="$OUTPUT_DIR/preview.txt"
 python - "$OUTPUT_DIR" "$N_PREVIEW" <<'PY' 2>&1 | tee "$PREVIEW_FILE"
-import glob, json, sys, os, textwrap
+import glob, json, sys, os, textwrap, re
 
 out_dir, n = sys.argv[1], int(sys.argv[2])
+
+# --- Timing summary (parsed from run.log) ---
+logfile = os.path.join(out_dir, "run.log")
+if os.path.isfile(logfile):
+    log_text = open(logfile).read()
+    timing_match = re.search(r"TIMING: (.+)", log_text)
+    if timing_match:
+        print("=" * 80)
+        print(f"TIMING: {timing_match.group(1)}")
+        print("=" * 80)
+
 for task_file in sorted(glob.glob(f"{out_dir}/**/samples_*.jsonl", recursive=True)):
     task = os.path.basename(task_file).split("_")[1]
     print("\n" + "=" * 80)

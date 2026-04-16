@@ -48,6 +48,77 @@ def build_predictions(resps: list[list[str]], docs: list[dict]) -> list[list[str
     return [[extract_code_blocks(r) for r in resp] for resp in resps]
 
 
+_COT_CODE_BLOCK_RE = re.compile(r"```(?:python)?\s*\n?(.*?)```", re.DOTALL)
+
+
+_FUNC_NAME_RE = re.compile(r"^\s*assert\s+(\w+)\s*\(", re.MULTILINE)
+
+
+def _extract_def_span(text: str, func_name: str | None) -> str | None:
+    """Find a `def <name>(...)` block in free-form text and return it.
+    Captures until a dedent (non-indented line that isn't blank/comment)."""
+    if func_name:
+        pattern = re.compile(rf"^([ \t]*)def {re.escape(func_name)}\b", re.MULTILINE)
+    else:
+        pattern = re.compile(r"^([ \t]*)def \w+\b", re.MULTILINE)
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return None
+    # Take the LAST def (often the model's final attempt after deliberation).
+    m = matches[-1]
+    start = m.start()
+    lines = text[start:].splitlines()
+    kept = [lines[0]]
+    for line in lines[1:]:
+        # Stop when a non-blank, non-indented, non-comment line appears.
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            kept.append(line)
+            continue
+        if line[:1] in (" ", "\t"):
+            kept.append(line)
+        else:
+            break
+    return "\n".join(kept).rstrip()
+
+
+def build_predictions_cot(resps: list[list[str]], docs: list[dict]) -> list[list[str]]:
+    """Robust extractor used for both CoT and base mbpp.
+    Order of preference:
+      1. `def <target_funcname>(...)` block in a ```python``` fence
+      2. Any ```python``` fence containing `def `
+      3. Longest fenced block
+      4. `def <target_funcname>(...):` span in free-form text (model reasoned in prose)
+      5. Any `def <name>(...):` span
+      6. Raw response (last resort)
+    Target function name is sniffed from the first `assert <name>(` in test_list."""
+    out = []
+    for resp, doc in zip(resps, docs):
+        func_name = None
+        for t in doc.get("test_list", []):
+            m = _FUNC_NAME_RE.search(t)
+            if m:
+                func_name = m.group(1)
+                break
+        row = []
+        for r in resp:
+            blocks = _COT_CODE_BLOCK_RE.findall(r)
+            chosen = None
+            if blocks:
+                if func_name:
+                    targeted = [b for b in blocks if f"def {func_name}" in b]
+                    if targeted:
+                        chosen = targeted[0]
+                if chosen is None:
+                    with_def = [b for b in blocks if "def " in b]
+                    chosen = with_def[0] if with_def else max(blocks, key=len)
+            else:
+                chosen = _extract_def_span(r, func_name) or _extract_def_span(r, None)
+            row.append((chosen or r).strip())
+        out.append(row)
+    return out
+
+
 def list_fewshot_samples():
     return [
         {
