@@ -619,7 +619,9 @@ def evaluate(
                 world_size=WORLD_SIZE,
                 samples=indices,
             )
-            for doc_id, doc in doc_iterator:
+            from tqdm import tqdm as _tqdm
+            _total = len(instances_by_doc_id)
+            for doc_id, doc in _tqdm(doc_iterator, total=_total, desc=f"Grading {task_name}"):
                 doc_id_true = indices[doc_id] if indices else doc_id
                 requests = instances_by_doc_id[doc_id]
                 metrics = task.process_results(
