@@ -25,6 +25,6 @@ filter_list:
   - name: "create_test"
     filter:
       - function: "custom"
-        filter_fn: !function utils.build_predictions
+        filter_fn: !function utils.build_predictions_cot
 metadata:
   version: 1.0

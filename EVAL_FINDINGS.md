@@ -7,6 +7,53 @@ not model capability issues — fixing them moves the numbers substantially.
 Run setup: greedy decoding (`temperature=0`, `do_sample=False`),
 `max_gen_toks=4096`, 0-shot, vLLM DP=4 on 4× RTX 6000 Ada.
 
+## What our parser does beyond upstream (`c1c4bea3`)
+
+All four tasks (`humaneval`, `humaneval_cot`, `mbpp`, `mbpp_cot`) now share a
+single unified extractor, `build_predictions_cot`, in
+`lm_eval/tasks/{humaneval,mbpp}/utils.py`. Differences from the stock upstream
+parsers (`build_predictions`, `build_predictions_instruct`,
+`extract_code_blocks`):
+
+**Block selection**
+1. Considers **all** fenced code blocks, not just the first.
+2. **Prefers the block containing `def <target_funcname>`** — so trailing
+   test-assert blocks don't get picked.
+3. Fallback tiers within fences: target `def` → any `def ` → longest block.
+
+**Target function inference**
+4. **Sniffs expected function name from `assert <name>(` in `test_list`**
+   (mbpp) or uses `entry_point` (humaneval), making block preference
+   test-aware.
+
+**Unfenced-prose fallback (mbpp)**
+5. **Extracts a `def <name>(...):` span from free-form prose** when the model
+   never emits a ` ```python` fence. Walks lines after `def` and captures
+   until a dedent (non-indented, non-comment line).
+6. **Takes the last `def` match** in prose — catches the model's final
+   attempt after deliberation, not its first draft.
+
+**Humaneval-specific safety**
+7. **Avoids duplicate-def bug.** Only prepends `doc["prompt"]` if the
+   extracted block doesn't already contain `def <entry_point>`. Upstream
+   `build_predictions_instruct` blindly prepends, causing syntax errors when
+   the model emits the full function.
+
+**Fence-prepend fix**
+8. **No spurious ` ``` ` prepend.** Upstream `extract_code_blocks` prepends
+   ` ``` ` (relic of `gen_prefix` legacy), which produces an empty match when
+   the response starts with its own ` ```python` fence.
+
+**Empty-match handling**
+9. **Falls back to the raw response** as last resort instead of returning an
+   empty string (upstream `extract_code_blocks` returns `""` when no match,
+   killing the grader).
+
+**Covers `mbpp.yaml` at all**
+10. Upstream `mbpp.yaml` has **no filter** — raw response went straight to the
+    grader. We added `build_predictions_cot` as its filter so instruct-model
+    reasoning prose doesn't get graded as Python source.
+
 ## Headline numbers
 
 | Task            | Mode | Before fixes | After fixes | Δ |

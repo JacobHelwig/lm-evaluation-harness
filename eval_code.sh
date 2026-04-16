@@ -18,6 +18,7 @@ set -xeuo pipefail
 MODEL="Qwen/Qwen3-4B"
 NUM_FEWSHOT=0
 MAX_GEN_TOKS=4096
+# MAX_GEN_TOKS=8192
 MEMORY_FRACTION=0.5
 BACKEND="vllm"   # or "hf"
 
@@ -42,7 +43,7 @@ TP_SIZE=1
 DP_SIZE=4
 
 COT_TAG=$([[ "$COT" == "1" ]] && echo "cot" || echo "nocot")
-OUTPUT_DIR="$PWD/eval_outputs/$(echo "$MODEL" | tr '/' '_')_${COT_TAG}_$(date +%Y%m%d_%H%M%S)"
+OUTPUT_DIR="$PWD/eval_outputs/$(echo "$MODEL" | tr '/' '_')_${COT_TAG}_gen${MAX_GEN_TOKS}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$OUTPUT_DIR"
 
 ############################ Launch ############################
